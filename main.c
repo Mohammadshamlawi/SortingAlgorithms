@@ -57,6 +57,8 @@ int numOfDigitsf(double);
 
 __attribute__((unused)) int qSortCompare(const void *, const void *);
 
+void *print();
+
 void run_query(MYSQL *, const char *);
 
 enum net_async_status run_query_non_blocking(MYSQL *, const char *);
@@ -84,7 +86,7 @@ const void *algorithms[] = {
         oddEvenSort,
         mergeSort3Way
 };
-const void *l_h_algorithms[] = {quickSort, stoogeSort};
+const void *l_h_algorithms[] = {quickSort, /*stoogeSort*/};
 const char *algorithm_names[] = {
         "Selection Sort",
         "Bubble Sort",
@@ -99,10 +101,9 @@ const char *algorithm_names[] = {
         "Odd-Even Sort",
         "3 Way Merge Sort",
         "Quick Sort",
-        "Stooge Sort"
+//        "Stooge Sort"
 };
 
-//int sizes[] = {1000, 10000, 100000, 1000000, 10000000};
 const int sizes[] = {1000, 10000};
 const int iterations = 10;
 
@@ -135,6 +136,8 @@ const int sizes_count = sizeof(sizes) / sizeof(sizes[0]),
         total_algorithms = algorithm_count + l_h_algorithm_count + 1,
         approach_count = sizeof(approach_name) / sizeof(approach_name[0]);
 
+
+char running = 0;
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-non-prototype"
@@ -205,6 +208,9 @@ int main(int argc, char *argv[]) {
     printf("\nDone\n");
     printf("Creating threads...");
 
+    pthread_t print_thread;
+    pthread_create(&print_thread, NULL, print, NULL);
+
     threads = calloc(iterations, sizeof(struct thread));
     for (int i = 0; i < iterations; ++i) {
         threads[i].status = CREATED;
@@ -213,14 +219,18 @@ int main(int argc, char *argv[]) {
             threads[i].status = NOT_CREATED;
         }
     }
+    running = 1;
     printf("\nDone\n");
-    printf("Executing...");
+    printf("Executing...\n");
 
     for (int i = 0; i < iterations; ++i) {
         if (threads[i].status != NOT_CREATED) pthread_join(threads[i].id, NULL);
     }
     mysql_close(conn);
     pthread_mutex_destroy(&pMutex);
+
+    running = 0;
+    pthread_join(print_thread, NULL);
 
     printf("\nDone\n");
 
@@ -619,6 +629,70 @@ void heapify(u_int64 arr[], int n, int i) {
 
 __attribute__((unused)) int qSortCompare(const void *a, const void *b) {
     return (int) (*(u_int64 *) a - *(u_int64 *) b);
+}
+
+void *print() {
+    double elapsed;
+    size_t snapshot;
+    double start_time = microtime();
+
+    while (!running) {}
+
+    while (running) {
+        printf("Run Time: %fms\n", (microtime() - start_time) * 1000);
+        for (int i = 0; i < iterations; ++i) {
+            printf("Thread %d: ", threads[i].index);
+            switch (threads[i].status) {
+                case CREATED:
+                    printf("Created");
+                    break;
+                case NOT_CREATED:
+                    printf("Creation Failed");
+                    break;
+                case IN_PROGRESS:
+                    printf("In Progress...");
+                    break;
+                case FINISHED:
+                    printf("Done");
+                    break;
+                case THREAD_FAILED:
+                    printf("Failed");
+                    break;
+            }
+            printf("\n");
+        }
+
+        for (int i = 0; i < iterations + 1; ++i) {
+            printf("\033[A");
+            printf("\33[2K\r");
+        }
+    }
+
+    printf("Run Time: %fms\n", (microtime() - start_time) * 1000);
+    for (int i = 0; i < iterations; ++i) {
+        printf("Thread %d: ", threads[i].index);
+        switch (threads[i].status) {
+            case CREATED:
+                printf("Created");
+                break;
+            case NOT_CREATED:
+                printf("Creation Failed");
+                break;
+            case IN_PROGRESS:
+                printf("In Progress...");
+                break;
+            case FINISHED:
+                printf("Done");
+                break;
+            case THREAD_FAILED:
+                printf("Failed");
+                break;
+        }
+        printf("\n");
+    }
+
+    pthread_exit(NULL);
+    return NULL;
 }
 // END Utilities
 
